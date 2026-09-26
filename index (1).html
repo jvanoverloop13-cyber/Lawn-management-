@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#167a3f">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<title>JJ Lawn Sales V3</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:#f4f7f5;color:#183322}
+header{background:#167a3f;color:#fff;padding:14px 16px;position:sticky;top:0;z-index:1000}
+h1{margin:0;font-size:21px}header p{margin:4px 0 0;font-size:13px;opacity:.9}
+#map{height:58vh;min-height:390px}.panel{background:#fff;border-radius:18px 18px 0 0;padding:14px 16px;margin-top:-14px;position:relative;z-index:900;box-shadow:0 -3px 14px #0002}
+.row{display:flex;gap:8px;flex-wrap:wrap}button,select,input,textarea{font:inherit}
+button{border:0;border-radius:12px;padding:12px 14px;font-weight:700;background:#e4efe8;color:#164c2d}
+button.primary{background:#167a3f;color:white}button.red{background:#c93636;color:white}
+button.gray{background:#e8ece9}.card{border:1px solid #d9e3dd;border-radius:14px;padding:12px;margin-top:10px}
+label{font-size:12px;font-weight:700;display:block;margin:8px 0 4px}input,select,textarea{width:100%;padding:11px;border:1px solid #cbd7d0;border-radius:10px;background:#fff}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.big{font-size:25px;font-weight:800;color:#167a3f}
+.small{font-size:12px;color:#607067}.status{padding:9px;border-radius:10px;background:#f0f6f2;font-size:13px;margin-top:8px}
+.customer{padding:10px;border-bottom:1px solid #e0e8e3}.customer:last-child{border:0}
+.leaflet-control-layers{font-size:13px}.house-pin{background:#167a3f;border:2px solid white;border-radius:50%;box-shadow:0 1px 4px #0006}
+</style>
+</head>
+<body>
+<header><h1>🌱 JJ Lawn Sales V3</h1><p>Map • automatic property estimates • quotes • customers</p></header>
+<div id="map"></div>
+
+<div class="panel">
+<div class="row">
+<button class="primary" onclick="findMe()">📍 Find Me</button>
+<button onclick="loadHouses()">🏠 Find Houses Here</button>
+<button onclick="toggleSatellite()">🛰️ Satellite</button>
+</div>
+<div class="status" id="status">Tap “Find Houses Here” after moving the map to the neighborhood you are working in.</div>
+
+<div id="property" class="card" style="display:none">
+<h3 style="margin:0 0 6px">Selected Property</h3>
+<div id="address" style="font-weight:800"></div>
+<div class="grid">
+<div><label>Building footprint</label><div class="big" id="buildingArea">—</div></div>
+<div><label>Estimated mow area</label><div class="big" id="yardArea">—</div></div>
+</div>
+<div class="small" id="estimateNote"></div>
+
+<label>Lot size / mow area adjustment (optional)</label>
+<input id="yardOverride" type="number" placeholder="Leave blank to use estimate" oninput="recalc()">
+
+<div class="grid">
+<div><label>Property size</label>
+<select id="size" onchange="recalc()">
+<option value="small">Small</option><option value="medium" selected>Medium</option><option value="large">Large</option><option value="extra">Extra large</option>
+</select></div>
+<div><label>Lawn difficulty</label>
+<select id="difficulty" onchange="recalc()">
+<option value="easy">Easy</option><option value="normal" selected>Normal</option><option value="hard">Hard / obstacles</option>
+</select></div>
+</div>
+<label>Automatic mowing quote</label>
+<div class="big" id="quote">$45</div>
+
+<hr style="border:0;border-top:1px solid #e2e8e4;margin:12px 0">
+<h3 style="margin:0">Customer</h3>
+<div class="grid">
+<div><label>Name</label><input id="name" placeholder="Customer name"></div>
+<div><label>Phone</label><input id="phone" type="tel" placeholder="Phone number"></div>
+</div>
+<label>Address</label><input id="custAddress" placeholder="Address" >
+<label>Notes</label><textarea id="notes" rows="2" placeholder="Gate, pets, hills, trimming, etc."></textarea>
+<div class="row" style="margin-top:10px">
+<button class="primary" onclick="saveCustomer('YES')">✓ Customer Said YES</button>
+<button class="red" onclick="saveCustomer('NO')">✕ Customer Said NO</button>
+</div>
+</div>
+
+<div class="card">
+<h3 style="margin:0">Saved Customers</h3>
+<div id="customers" class="small">No customers saved yet.</div>
+</div>
+<div class="card">
+<h3 style="margin:0 0 8px">⚙️ Pricing</h3>
+<div class="grid">
+<div><label>Base price</label><input id="base" type="number" value="35" onchange="recalc()"></div>
+<div><label>Per 1,000 sq ft</label><input id="perK" type="number" value="4" onchange="recalc()"></div>
+</div>
+<div class="small">Pricing is an estimate. You can change these numbers any time.</div>
+</div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@turf/turf@7/turf.min.js"></script>
+<script>
+const map=L.map('map',{zoomControl:true}).setView([42.9,-85.9],15);
+const street=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:20,attribution:'© OpenStreetMap contributors'}).addTo(map);
+const satellite=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Tiles © Esri'});
+let satelliteOn=false, selected=null, housesLayer=L.layerGroup().addTo(map), currentMarker=null;
+
+function setStatus(t){document.getElementById('status').textContent=t}
+function toggleSatellite(){if(satelliteOn){map.removeLayer(satellite);street.addTo(map)}else{map.removeLayer(street);satellite.addTo(map)}satelliteOn=!satelliteOn}
+
+function findMe(){
+ if(!navigator.geolocation){setStatus('Location is not supported on this phone/browser.');return}
+ setStatus('Finding your location…');
+ navigator.geolocation.getCurrentPosition(p=>{
+   const ll=[p.coords.latitude,p.coords.longitude]; map.setView(ll,18);
+   if(currentMarker) map.removeLayer(currentMarker);
+   currentMarker=L.circleMarker(ll,{radius:9,color:'#167a3f',fillColor:'#31a85f',fillOpacity:.9}).addTo(map).bindPopup('You are here').openPopup();
+   setStatus('You are centered on your GPS location. Tap “Find Houses Here”.');
+ },e=>setStatus('Location permission was denied or unavailable. Check Chrome location permission.'),{enableHighAccuracy:true,timeout:12000});
+}
+
+async function loadHouses(){
+ const c=map.getCenter(), b=map.getBounds();
+ const q=`[out:json][timeout:25];(way["building"](${b.getSouth()},${b.getWest()},${b.getNorth()},${b.getEast()});relation["building"](${b.getSouth()},${b.getWest()},${b.getNorth()},${b.getEast()}););out geom;`;
+ setStatus('Finding buildings in this map area…');
+ try{
+   const r=await fetch('https://overpass-api.de/api/interpreter',{method:'POST',body:q});
+   const data=await r.json(); housesLayer.clearLayers();
+   let count=0;
+   data.elements.forEach(el=>{
+     if(!el.geometry || el.geometry.length<3)return;
+     const latlngs=el.geometry.map(x=>[x.lat,x.lon]);
+     const poly=L.polygon(latlngs,{color:'#167a3f',weight:2,fillColor:'#7aa987',fillOpacity:.25});
+     poly.on('click',()=>selectHouse(el,latlngs));
+     poly.addTo(housesLayer); count++;
+   });
+   setStatus(`${count} building footprints loaded. Tap a house to select it.`);
+ }catch(e){setStatus('Could not load houses. Check your internet connection and try again.')}
+}
+
+async function reverseGeocode(lat,lon){
+ try{
+  const r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}`);
+  const d=await r.json(); return d.display_name||'Address not found';
+ }catch(e){return 'Address lookup unavailable'}
+}
+
+async function selectHouse(el,latlngs){
+ const center=L.latLngBounds(latlngs).getCenter();
+ let area=0;
+ try{
+   const coords=latlngs.map(x=>[x[1],x[0]]);
+   coords.push(coords[0]); area=turf.area(turf.polygon([coords]));
+ }catch(e){}
+ selected={el,latlngs,buildingArea:area,lat:center.lat,lng:center.lng};
+ document.getElementById('property').style.display='block';
+ document.getElementById('buildingArea').textContent=fmt(area);
+ document.getElementById('yardArea').textContent='Estimating…';
+ const addr=await reverseGeocode(center.lat,center.lng);
+ selected.address=addr; document.getElementById('address').textContent=addr;
+ document.getElementById('custAddress').value=addr;
+ const estimated=Math.max(area*5,2500);
+ selected.estimatedYard=estimated;
+ document.getElementById('yardArea').textContent=fmt(estimated);
+ document.getElementById('estimateNote').textContent='Automatic mow-area estimate: building footprint × 5. This is an estimate, not a surveyed lot boundary. Use the adjustment box for unusual lots.';
+ recalc();
+ map.setView(center,18);
+ document.getElementById('property').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function fmt(n){return Math.round(n).toLocaleString()+' sq ft'}
+function recalc(){
+ if(!selected)return;
+ const override=parseFloat(document.getElementById('yardOverride').value);
+ const yard=override>0?override:selected.estimatedYard||0;
+ const base=parseFloat(document.getElementById('base').value)||0, perK=parseFloat(document.getElementById('perK').value)||0;
+ const size={small:0,medium:10,large:20,extra:35}[document.getElementById('size').value]||0;
+ const diff={easy:0,normal:5,hard:15}[document.getElementById('difficulty').value]||0;
+ const q=Math.max(0,base+Math.ceil(yard/1000)*perK+size+diff);
+ document.getElementById('quote').textContent='$'+q;
+ selected.yard=yard; selected.quote=q;
+}
+
+function saveCustomer(result){
+ if(!selected){alert('Tap a house first.');return}
+ recalc();
+ const item={id:Date.now(),status:result,address:selected.address||'',name:document.getElementById('name').value,phone:document.getElementById('phone').value,notes:document.getElementById('notes').value,building:selected.buildingArea,yard:selected.yard,quote:selected.quote,created:new Date().toLocaleString()};
+ const arr=JSON.parse(localStorage.getItem('jjCustomersV3')||'[]'); arr.unshift(item); localStorage.setItem('jjCustomersV3',JSON.stringify(arr)); renderCustomers();
+ setStatus('Customer saved as '+result+'.');
+}
+function renderCustomers(){
+ const arr=JSON.parse(localStorage.getItem('jjCustomersV3')||'[]'), box=document.getElementById('customers');
+ if(!arr.length){box.textContent='No customers saved yet.';return}
+ box.innerHTML=arr.map(x=>`<div class="customer"><b>${esc(x.name||'Unnamed customer')}</b> — ${x.status}<br>${esc(x.address)}<br>${esc(x.phone||'No phone')} • <b>$${x.quote}</b> • ${fmt(x.yard)}<br><span class="small">${esc(x.notes||'')}</span></div>`).join('');
+}
+function esc(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+renderCustomers();
+if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script>
+</body>
+</html>
