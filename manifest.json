@@ -1,0 +1,12 @@
+{
+  "name":"JJ Lawn Sales",
+  "short_name":"JJ Lawn",
+  "start_url":"./index.html",
+  "display":"standalone",
+  "background_color":"#f4f7f4",
+  "theme_color":"#1f7a3f",
+  "description":"Door-to-door lawn sales, property measuring and customer tracking.",
+  "icons":[
+    {"src":"icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}
+  ]
+}
