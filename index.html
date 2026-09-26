@@ -7,21 +7,13 @@
 <link rel="manifest" href="manifest.json">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css">
-<title>JJ Lawn Sales</title>
+<title>Lawn Sales</title>
 <style>
 *{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:#f4f7f4;color:#17301f}
-header{background:#1f7a3f;color:#fff;padding:14px 16px;position:sticky;top:0;z-index:1000}
-header h1{margin:0;font-size:21px}header p{margin:3px 0 0;font-size:12px;opacity:.9}
-#map{height:56vh;min-height:390px}
-.panel{background:#fff;padding:14px 16px;border-radius:18px 18px 0 0;box-shadow:0 -3px 15px #0002;position:relative;z-index:900}
-.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-button{border:0;border-radius:12px;padding:12px 15px;font-weight:700;background:#1f7a3f;color:#fff;font-size:14px}
-button.secondary{background:#e6eee8;color:#174d2a}button.yes{background:#238b45}button.no{background:#b73535}
-input,select{padding:11px;border:1px solid #cbd8ce;border-radius:10px;font-size:15px;width:100%}
-.field{flex:1;min-width:120px}.small{font-size:12px;color:#5d6c61}.price{font-size:28px;font-weight:800;color:#1f7a3f}
-.card{background:#f7faf7;border:1px solid #dce7de;border-radius:14px;padding:12px;margin-top:10px}
-.hidden{display:none}.status{font-weight:800}.list{max-height:230px;overflow:auto}
-.leaflet-popup-content{font-size:14px}.building{cursor:pointer}
+header{background:#1f7a3f;color:#fff;padding:14px 16px;position:sticky;top:0;z-index:1000}header h1{margin:0;font-size:21px}header p{margin:3px 0 0;font-size:12px;opacity:.9}
+#map{height:55vh;min-height:380px}.panel{background:#fff;padding:14px 16px;border-radius:18px 18px 0 0;box-shadow:0 -3px 15px #0002;position:relative;z-index:900}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}button{border:0;border-radius:12px;padding:12px 15px;font-weight:700;background:#1f7a3f;color:#fff;font-size:14px;cursor:pointer}button.secondary{background:#e6eee8;color:#174d2a}button.yes{background:#238b45}button.no{background:#b73535}
+input,select,textarea{padding:11px;border:1px solid #cbd8ce;border-radius:10px;font-size:15px;width:100%;font-family:inherit}.field{flex:1;min-width:140px}.small{font-size:12px;color:#5d6c61}.price{font-size:30px;font-weight:800;color:#1f7a3f}.card{background:#f7faf7;border:1px solid #dce7de;border-radius:14px;padding:12px;margin-top:10px}.hidden{display:none}.list{max-height:280px;overflow:auto}.lead{padding:10px 0;border-bottom:1px solid #dce7de}.lead:last-child{border-bottom:0}.tier{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}.tier b{grid-column:1/-1}.notice{background:#eef7ef;border-left:4px solid #1f7a3f;padding:9px;border-radius:8px;margin-top:8px;font-size:12px}.measure-hint{margin-top:8px}.building{cursor:pointer}
 </style>
 </head>
 <body>
@@ -31,19 +23,25 @@ input,select{padding:11px;border:1px solid #cbd8ce;border-radius:10px;font-size:
   <div class="row">
     <button onclick="locate()">📍 Find Me</button>
     <button class="secondary" onclick="loadBuildings()">🏠 Load Houses</button>
-    <button class="secondary" onclick="startMeasure()">📐 Measure Yard</button>
+    <button class="secondary" onclick="startMeasure()">📐 Measure Lawn</button>
   </div>
+  <div class="small measure-hint">Tap a house, then tap <b>Measure Lawn</b> and trace the grass around the property. The app calculates square feet, acres, and the quote automatically.</div>
 
   <div id="selected" class="card hidden">
     <div class="small">Selected property</div>
-    <div id="address" style="font-weight:800;margin:3px 0 8px">Tap a house on the map</div>
-    <div class="row">
-      <div class="field"><label class="small">Yard sq ft</label><input id="sqft" type="number" min="0" placeholder="e.g. 6500" oninput="calcPrice()"></div>
-      <div class="field"><label class="small">Acres</label><input id="acres" type="number" min="0" step="0.001" placeholder="e.g. 0.25" oninput="fromAcres()"></div>
+    <div class="row" style="margin-top:7px">
+      <div class="field"><label class="small">Customer name</label><input id="customerName" placeholder="e.g. John Smith"></div>
+      <div class="field"><label class="small">Phone number</label><input id="phone" type="tel" placeholder="e.g. 616-555-1234"></div>
     </div>
-    <div style="margin-top:10px" class="small">Quote</div>
+    <div style="margin-top:8px"><label class="small">Address</label><input id="address" placeholder="Property address"></div>
+    <div class="row" style="margin-top:8px">
+      <div class="field"><label class="small">Lawn sq ft</label><input id="sqft" type="number" min="0" placeholder="Measure or enter" oninput="calcPrice()"></div>
+      <div class="field"><label class="small">Acres</label><input id="acres" type="number" min="0" step="0.001" placeholder="Auto-filled" oninput="fromAcres()"></div>
+    </div>
+    <div style="margin-top:10px" class="small">Automatic mowing quote</div>
     <div id="price" class="price">$0</div>
-    <div class="small">Base + area pricing. Change your rates in Settings.</div>
+    <div id="tierLabel" class="small">Measure the lawn to calculate the price.</div>
+    <div style="margin-top:8px"><label class="small">Notes</label><textarea id="notes" rows="2" placeholder="Gate, hills, edging, customer requests, etc."></textarea></div>
     <div class="row" style="margin-top:10px">
       <button class="yes" onclick="saveLead('YES')">✓ Customer Said YES</button>
       <button class="no" onclick="saveLead('NO')">✕ Customer Said NO</button>
@@ -51,19 +49,23 @@ input,select{padding:11px;border:1px solid #cbd8ce;border-radius:10px;font-size:
   </div>
 
   <div class="card">
-    <div class="row" style="justify-content:space-between">
-      <b>Saved Customers</b><button class="secondary" onclick="showSettings()">⚙️ Settings</button>
-    </div>
+    <div class="row" style="justify-content:space-between"><b>Saved Customers</b><button class="secondary" onclick="showSettings()">⚙️ Pricing & Settings</button></div>
     <div id="leads" class="list"></div>
   </div>
 
   <div id="settings" class="card hidden">
-    <b>Pricing</b>
-    <div class="row" style="margin-top:8px">
-      <div class="field"><label class="small">Base price ($)</label><input id="base" type="number" value="35"></div>
-      <div class="field"><label class="small">Price per 1,000 sq ft ($)</label><input id="per1000" type="number" value="12"></div>
+    <b>Automatic lawn-size pricing</b>
+    <div class="small" style="margin-top:4px">Change these example prices to match what you charge. The app picks the tier from the measured lawn size.</div>
+    <div class="tier">
+      <b>Up to 3,000 sq ft</b><input id="p1" type="number" min="0"><input id="s1" type="number" min="0" value="3000" disabled>
+      <b>3,001–5,000 sq ft</b><input id="p2" type="number" min="0"><input id="s2" type="number" min="0" value="5000" disabled>
+      <b>5,001–7,000 sq ft</b><input id="p3" type="number" min="0"><input id="s3" type="number" min="0" value="7000" disabled>
+      <b>7,001–10,000 sq ft</b><input id="p4" type="number" min="0"><input id="s4" type="number" min="0" value="10000" disabled>
+      <b>10,001–15,000 sq ft</b><input id="p5" type="number" min="0"><input id="s5" type="number" min="0" value="15000" disabled>
+      <b>Over 15,000 sq ft</b><input id="p6" type="number" min="0"><input id="extra" type="number" min="0" step="1" placeholder="Extra $ per 1,000 sq ft over 15k"><span></span>
     </div>
-    <button style="margin-top:9px" onclick="saveSettings()">Save Pricing</button>
+    <button style="margin-top:10px" onclick="saveSettings()">Save Pricing</button>
+    <div class="notice">Tip: These are starting example prices, not a recommendation. Set them to the rates you actually want to charge.</div>
   </div>
 </section>
 
@@ -73,86 +75,71 @@ input,select{padding:11px;border:1px solid #cbd8ce;border-radius:10px;font-size:
 <script>
 const map=L.map('map').setView([42.94,-85.86],15);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:20,attribution:'© OpenStreetMap contributors'}).addTo(map);
-let selected=null, drawing=null, buildings=L.layerGroup().addTo(map);
+let selected=null,drawing=null,measureGroup=null,buildings=L.layerGroup().addTo(map),userMarker=null,userAccuracy=null;
 let leads=JSON.parse(localStorage.getItem('jjLeads')||'[]');
-let settings=JSON.parse(localStorage.getItem('jjSettings')||'{"base":35,"per1000":12}');
-document.getElementById('base').value=settings.base;document.getElementById('per1000').value=settings.per1000;
-renderLeads();
+let settings=JSON.parse(localStorage.getItem('jjSettings')||'{"tiers":[{"max":3000,"price":35},{"max":5000,"price":45},{"max":7000,"price":55},{"max":10000,"price":70},{"max":15000,"price":85}],"over15":100,"extraPer1000":8}');
+loadSettingsInputs();renderLeads();
+if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
 
+function loadSettingsInputs(){
+ ['p1','p2','p3','p4','p5'].forEach((id,i)=>document.getElementById(id).value=settings.tiers[i]?.price ?? [35,45,55,70,85][i]);
+ document.getElementById('p6').value=settings.over15 ?? 100;document.getElementById('extra').value=settings.extraPer1000 ?? 8;
+}
 function locate(){
  navigator.geolocation.getCurrentPosition(p=>{
-   const ll=[p.coords.latitude,p.coords.longitude]; map.setView(ll,18);
-   L.circleMarker(ll,{radius:9,color:'#1f7a3f',fillOpacity:.8}).addTo(map).bindPopup('You are here').openPopup();
-   loadBuildings();
+  const ll=[p.coords.latitude,p.coords.longitude];map.setView(ll,19);
+  if(userMarker)map.removeLayer(userMarker);if(userAccuracy)map.removeLayer(userAccuracy);
+  userAccuracy=L.circle(ll,{radius:p.coords.accuracy||20,color:'#1f7a3f',fillOpacity:.08,weight:2}).addTo(map);
+  userMarker=L.circleMarker(ll,{radius:8,color:'#fff',weight:3,fillColor:'#1f7a3f',fillOpacity:1}).addTo(map).bindPopup('You are here').openPopup();
+  loadBuildings();
  },()=>alert('Location permission was not allowed. Turn on Location for your browser.'));
 }
 async function loadBuildings(){
- const c=map.getCenter(), d=.008;
- const q=`[out:json][timeout:20];way["building"](${c.lat-d},${c.lng-d},${c.lat+d},${c.lng+d});out geom;`;
- try{
-  const r=await fetch('https://overpass-api.de/api/interpreter?data='+encodeURIComponent(q));
-  const data=await r.json(); buildings.clearLayers();
-  data.elements.forEach(el=>{
-   if(!el.geometry||el.geometry.length<3)return;
-   const pts=el.geometry.map(x=>[x.lat,x.lon]);
-   const poly=L.polygon(pts,{color:'#1f7a3f',weight:1,fillOpacity:.18});
-   poly.on('click',()=>selectProperty(poly.getBounds().getCenter(),el));
-   poly.addTo(buildings);
-  });
- }catch(e){alert('Could not load house footprints right now. You can still tap the map and measure a yard.');}
+ const c=map.getCenter(),d=.008,q=`[out:json][timeout:20];way["building"](${c.lat-d},${c.lng-d},${c.lat+d},${c.lng+d});out geom;`;
+ try{const r=await fetch('https://overpass-api.de/api/interpreter?data='+encodeURIComponent(q));const data=await r.json();buildings.clearLayers();
+  data.elements.forEach(el=>{if(!el.geometry||el.geometry.length<3)return;const pts=el.geometry.map(x=>[x.lat,x.lon]);const poly=L.polygon(pts,{color:'#1f7a3f',weight:2,fillOpacity:.16});poly.on('click',()=>selectProperty(poly.getBounds().getCenter(),el));poly.addTo(buildings);});
+ }catch(e){alert('Could not load house footprints right now. You can still measure a lawn manually.');}
 }
 async function selectProperty(ll,el){
- selected={lat:ll.lat,lng:ll.lng,buildingId:el.id};
- document.getElementById('selected').classList.remove('hidden');
- document.getElementById('address').textContent='Property near '+ll.lat.toFixed(5)+', '+ll.lng.toFixed(5);
- document.getElementById('sqft').value='';document.getElementById('acres').value='';calcPrice();
- try{
-  const u=`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${ll.lat}&lon=${ll.lng}`;
-  const r=await fetch(u,{headers:{'Accept':'application/json'}});
-  const j=await r.json(); if(j.display_name)document.getElementById('address').textContent=j.display_name;
- }catch(e){}
- map.setView(ll,18);
+ selected={lat:ll.lat,lng:ll.lng,buildingId:el.id};document.getElementById('selected').classList.remove('hidden');
+ document.getElementById('address').value='Property near '+ll.lat.toFixed(5)+', '+ll.lng.toFixed(5);document.getElementById('sqft').value='';document.getElementById('acres').value='';document.getElementById('customerName').value='';document.getElementById('phone').value='';document.getElementById('notes').value='';calcPrice();
+ try{const u=`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${ll.lat}&lon=${ll.lng}`;const r=await fetch(u,{headers:{'Accept':'application/json'}});const j=await r.json();if(j.display_name)document.getElementById('address').value=j.display_name;}catch(e){}
+ map.setView(ll,19);
 }
 map.on('click',e=>{if(!selected)selectProperty(e.latlng,{id:'map-point'})});
 
 function startMeasure(){
- if(drawing){drawing.remove();drawing=null}
- const group=new L.FeatureGroup();map.addLayer(group);
- const dc=new L.Control.Draw({draw:{polygon:true,polyline:false,rectangle:true,circle:false,circlemarker:false,marker:false},edit:{featureGroup:group,remove:true}});
- map.addControl(dc);
- map.once(L.Draw.Event.CREATED,e=>{
-   group.addLayer(e.layer); drawing=e.layer; map.removeControl(dc);
-   const gj=e.layer.toGeoJSON(); const area=turf.area(gj);
-   const sqft=Math.round(area*10.7639); const acres=(area/4046.8564224).toFixed(3);
-   document.getElementById('selected').classList.remove('hidden');
-   if(!selected)selected={lat:map.getCenter().lat,lng:map.getCenter().lng,buildingId:'measured'};
-   document.getElementById('sqft').value=sqft;document.getElementById('acres').value=acres;calcPrice();
-   document.getElementById('address').textContent='Measured yard at map location';
- });
+ if(!selected){selected={lat:map.getCenter().lat,lng:map.getCenter().lng,buildingId:'measured'};document.getElementById('selected').classList.remove('hidden');document.getElementById('address').value='Measured lawn at map location';}
+ if(drawing){try{drawing.remove()}catch(e){}}if(measureGroup){measureGroup.clearLayers();map.removeLayer(measureGroup)}
+ measureGroup=new L.FeatureGroup();map.addLayer(measureGroup);
+ const dc=new L.Control.Draw({draw:{polygon:{allowIntersection:false,showArea:false},polyline:false,rectangle:true,circle:false,circlemarker:false,marker:false},edit:{featureGroup:measureGroup,remove:true}});
+ map.addControl(dc);alert('Trace around the grass. Tap each corner, then tap the first point to finish. You can use the rectangle tool if the lawn is simple.');
+ map.once(L.Draw.Event.CREATED,e=>{measureGroup.addLayer(e.layer);drawing=e.layer;map.removeControl(dc);finishMeasure(e.layer);});
+}
+function finishMeasure(layer){
+ const area=turf.area(layer.toGeoJSON()),sqft=Math.round(area*10.7639),acres=(area/4046.8564224).toFixed(3);
+ document.getElementById('sqft').value=sqft;document.getElementById('acres').value=acres;calcPrice();
+ document.getElementById('tierLabel').textContent='Automatically calculated from lawn size.';
 }
 function fromAcres(){const a=parseFloat(document.getElementById('acres').value);if(a>=0){document.getElementById('sqft').value=Math.round(a*43560);calcPrice()}}
-function calcPrice(){
- const s=parseFloat(document.getElementById('sqft').value)||0;
- const price=settings.base+(s/1000)*settings.per1000;
- document.getElementById('price').textContent='$'+Math.max(0,Math.round(price));
-}
+function getPrice(s){if(!s||s<0)return 0;for(const t of settings.tiers){if(s<=t.max)return t.price;}return Math.round(settings.over15+((s-15000)/1000)*settings.extraPer1000)}
+function getTierText(s){if(!s)return 'Measure the lawn to calculate the price.';for(const t of settings.tiers){if(s<=t.max)return `Lawn size: ${s.toLocaleString()} sq ft • ${'$'+t.price} mowing tier`;}return `Lawn size: ${s.toLocaleString()} sq ft • $${getPrice(s)} estimated mowing tier`;}
+function calcPrice(){const s=parseFloat(document.getElementById('sqft').value)||0;document.getElementById('price').textContent='$'+getPrice(s);document.getElementById('tierLabel').textContent=getTierText(s)}
 function saveLead(status){
- if(!selected){alert('Tap a house or map location first.');return}
- const sqft=parseFloat(document.getElementById('sqft').value)||0;
- if(!sqft){alert('Enter or measure the yard size first.');return}
- const price=Math.round(settings.base+(sqft/1000)*settings.per1000);
- const lead={...selected,address:document.getElementById('address').textContent,sqft,acres:(sqft/43560).toFixed(3),price,status,date:new Date().toLocaleString()};
- leads.unshift(lead);localStorage.setItem('jjLeads',JSON.stringify(leads));renderLeads();
- alert(status==='YES'?'Saved as a customer!':'Saved as a no for follow-up tracking.');
+ if(!selected){alert('Tap a house first or start Measure Lawn.');return}
+ const sqft=parseFloat(document.getElementById('sqft').value)||0;if(!sqft){alert('Measure the lawn first so the quote can be calculated.');return}
+ const lead={...selected,name:document.getElementById('customerName').value.trim(),phone:document.getElementById('phone').value.trim(),address:document.getElementById('address').value.trim(),sqft,acres:(sqft/43560).toFixed(3),price:getPrice(sqft),status,date:new Date().toLocaleString(),notes:document.getElementById('notes').value.trim()};
+ leads.unshift(lead);localStorage.setItem('jjLeads',JSON.stringify(leads));renderLeads();alert(status==='YES'?'Saved as a customer!':'Saved as a NO for follow-up tracking.');
 }
+function esc(s){return String(s||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 function renderLeads(){
- document.getElementById('leads').innerHTML=leads.length?leads.map((x,i)=>`<div style="padding:9px 0;border-bottom:1px solid #dce7de"><b>${x.status==='YES'?'✅':'❌'} ${x.status}</b> — $${x.price} — ${x.sqft.toLocaleString()} sq ft<br><span class="small">${x.address}<br>${x.date}</span></div>`).join(''):'<div class="small" style="padding-top:8px">No customers saved yet.</div>';
+ document.getElementById('leads').innerHTML=leads.length?leads.map(x=>`<div class="lead"><b>${x.status==='YES'?'✅':'❌'} ${esc(x.name||'Unnamed customer')}</b> — <b>$${x.price}</b> — ${x.sqft.toLocaleString()} sq ft<br><span class="small">${esc(x.address)}${x.phone?' • '+esc(x.phone):''}<br>${x.notes?'📝 '+esc(x.notes)+'<br>':''}${esc(x.date)}</span></div>`).join(''):'<div class="small" style="padding-top:8px">No customers saved yet.</div>';
 }
 function showSettings(){document.getElementById('settings').classList.toggle('hidden')}
 function saveSettings(){
- settings={base:parseFloat(document.getElementById('base').value)||0,per1000:parseFloat(document.getElementById('per1000').value)||0};
+ settings={tiers:[1,2,3,4,5].map(i=>({max:[3000,5000,7000,10000,15000][i-1],price:parseFloat(document.getElementById('p'+i).value)||0})),over15:parseFloat(document.getElementById('p6').value)||0,extraPer1000:parseFloat(document.getElementById('extra').value)||0};
  localStorage.setItem('jjSettings',JSON.stringify(settings));calcPrice();alert('Pricing saved.');
 }
 </script>
 </body>
-</html>
+</html> 
