@@ -1,9 +1,9 @@
 {
-  "name": "JPC Lawn & Landscape",
-  "short_name": "JPC",
-  "start_url": "./",
-  "display": "standalone",
-  "background_color": "#06130b",
-  "theme_color": "#0b9b42",
-  "icons": [{"src":"icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]
+  "name":"JPC Lawn & Landscape",
+  "short_name":"JPC",
+  "start_url":"./",
+  "display":"standalone",
+  "background_color":"#07100b",
+  "theme_color":"#18a34a",
+  "icons":[{"src":"icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]
 }
