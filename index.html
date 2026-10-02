@@ -18,6 +18,11 @@ header{background:linear-gradient(135deg,#07150c,#0f3a1d);color:#fff;padding:11p
 <section id="page-map" class="page active">
   <div class="mapWrap"><div id="map" class="mapBox"></div></div>
   <div class="panel">
+    <div class="row" style="margin-bottom:8px">
+      <input id="mapSearch" type="search" placeholder="🔎 Search any address…" autocomplete="off" style="flex:1;min-width:220px">
+      <button class="primary" onclick="searchMapAddress()">Search</button>
+    </div>
+    <div id="searchStatus" class="small" style="margin-bottom:8px"></div>
     <div class="row">
       <button class="primary" onclick="findMe()">📍 Find Me</button>
       <button onclick="loadHouses()">🏠 Find Houses Here</button>
@@ -111,6 +116,23 @@ async function exactAddressLookup(lat,lon,buildingEl=null){
   if(!best)best={address:'Address not found — enter it manually',exact:false,source:'none'};
   cache[key]=best;saveAddressCache(cache);return best;
 }
+async function searchMapAddress(){
+  const input=document.getElementById('mapSearch'), status=document.getElementById('searchStatus');
+  const q=(input?.value||'').trim(); if(!q){status.textContent='Enter an address to search.';return;}
+  if(!navigator.onLine){status.textContent='Address search needs an internet connection.';return;}
+  status.textContent='Searching…';
+  try{
+    const r=await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=5&q=${encodeURIComponent(q)}`,{headers:{'Accept':'application/json'}});
+    if(!r.ok)throw new Error('search failed');
+    const results=await r.json();
+    if(!results.length){status.textContent='No address found. Try the full street address.';return;}
+    const hit=results[0]; map.setView([+hit.lat,+hit.lon],18);
+    if(currentMarker)map.removeLayer(currentMarker);
+    currentMarker=L.marker([+hit.lat,+hit.lon]).addTo(map).bindPopup(`<b>${esc(hit.display_name||q)}</b>`).openPopup();
+    status.textContent=results.length>1?`Found ${results.length} results. Showing the closest match.`:'Address found.';
+  }catch(e){status.textContent='Search failed. Check your internet connection and try again.';}
+}
+document.getElementById('mapSearch')?.addEventListener('keydown',e=>{if(e.key==='Enter')searchMapAddress();});
 async function reverseGeocode(lat,lon){const x=await exactAddressLookup(lat,lon);return x.address}
 async function selectHouse(el,latlngs,poly){const center=L.latLngBounds(latlngs).getCenter();let area=0;try{const coords=latlngs.map(x=>[x[1],x[0]]);coords.push(coords[0]);area=turf.area(turf.polygon([coords]))}catch(e){}selected={el,houseKey:houseKey(el),latlngs,buildingArea:area,lat:center.lat,lng:center.lng,poly};document.getElementById('property').classList.remove('hide');document.getElementById('buildingArea').textContent=fmt(area);document.getElementById('yardArea').textContent='Estimating…';document.getElementById('address').textContent='Finding exact house address…';document.getElementById('custAddress').value='';const addrInfo=await exactAddressLookup(center.lat,center.lng,el);const addr=addrInfo.address;selected.address=addr;selected.addressExact=!!addrInfo.exact;document.getElementById('address').textContent=addr+(addrInfo.exact?' ✓':'');document.getElementById('custAddress').value=addr;document.getElementById('addressAccuracy').textContent=addrInfo.exact?'Exact house address found from map address data. You can still edit it below if needed.':'Exact house number was not available from public map data. Check or edit the address below.';const estimated=Math.max(area*5,2500);selected.estimatedYard=estimated;document.getElementById('yardArea').textContent=fmt(estimated);document.getElementById('estimateNote').textContent='Automatic mow-area estimate: building footprint × 5. Estimate only, not a surveyed lot boundary.';recalc();map.setView(center,18);loadExistingCustomer(el);document.getElementById('property').scrollIntoView({behavior:'smooth',block:'start'})}
 function customers(){return read(CUSTOMER_KEY,read('jjCustomersV4',read('jjCustomersV3',[])))}
