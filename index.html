@@ -46,7 +46,7 @@ header{background:linear-gradient(135deg,#07150c,#0f3a1d);color:#fff;padding:11p
       <label>Before photo</label><input id="beforePhoto" type="file" accept="image/*" capture="environment" onchange="previewPhoto('before')">
       <label>After photo</label><input id="afterPhoto" type="file" accept="image/*" capture="environment" onchange="previewPhoto('after')">
       <div id="photoPreview" style="display:none;margin-top:8px"><div class="photoPair"><div class="photoBox"><div class="small">BEFORE</div><img id="photoImg" alt="Before photo"></div><div class="photoBox"><div class="small">AFTER</div><img id="afterPhotoImg" alt="After photo"></div></div><button type="button" class="gray" style="margin-top:8px" onclick="removePhoto()">Remove photos</button></div>
-      <div class="row" style="margin-top:10px"><button class="primary" onclick="saveCustomer('YES')">✓ Customer Said YES</button><button class="red" onclick="saveCustomer('NO')">✕ Customer Said NO</button><button class="gray" onclick="saveCustomer('FOLLOW-UP')">🕐 Follow Up</button><button class="gray" onclick="deleteSelectedCustomer()">🗑️ Delete Customer</button></div>
+      <div class="row" style="margin-top:10px"><button class="primary" onclick="saveCustomer('YES')">✓ Customer Said YES</button><button class="red" onclick="saveCustomer('NO')">✕ Customer Said NO</button><button class="gray" onclick="saveCustomer('FOLLOW-UP')">🕐 Follow Up</button><button class="gray" onclick="clearSelectedHouseStatus()">↩️ Clear NO / Follow-Up</button><button class="gray" onclick="deleteSelectedCustomer()">🗑️ Delete Customer</button></div>
     </div>
   </div>
 </section>
@@ -117,48 +117,41 @@ async function exactAddressLookup(lat,lon,buildingEl=null){
   cache[key]=best;saveAddressCache(cache);return best;
 }
 async function findBuildingForSearch(hit){
-  const lat=+hit.lat, lon=+hit.lon, a=hit.address||{};
-  const num=a.house_number||'';
-  const road=a.road||a.street||'';
+  const lat=+hit.lat, lon=+hit.lon;
   if(!navigator.onLine)return null;
   try{
-    const escQ=v=>String(v||'').replace(/\\/g,'\\\\').replace(/"/g,'\\"');
-    let filters='';
-    if(num) filters+=`["addr:housenumber"="${escQ(num)}"]`;
-    if(road) filters+=`["addr:street"="${escQ(road)}"]`;
-    const q=`[out:json][timeout:15];(way["building"]${filters}(around:250,${lat},${lon});node["addr:housenumber"]${filters}(around:250,${lat},${lon});way["addr:housenumber"]${filters}(around:250,${lat},${lon}););out center geom tags;`;
+    // Do NOT require the building itself to have addr:* tags. Many OSM buildings
+    // have no address tags even when a nearby address point identifies the house.
+    const q=`[out:json][timeout:20];way["building"](around:120,${lat},${lon});out center geom tags;`;
     const r=await fetch('https://overpass-api.de/api/interpreter',{method:'POST',body:q});
     if(!r.ok)return null;
     const d=await r.json();
-    const buildings=(d.elements||[]).filter(e=>e.type==='way'&&e.tags?.building&&e.geometry?.length>=3);
-    if(buildings.length){
-      let best=buildings[0],bestD=Infinity;
-      for(const b of buildings){
-        const c=b.center||{lat:b.geometry.reduce((x,p)=>x+p.lat,0)/b.geometry.length,lon:b.geometry.reduce((x,p)=>x+p.lon,0)/b.geometry.length};
-        const dx=(c.lat-lat)*111320,dy=(c.lon-lon)*111320*Math.cos(lat*Math.PI/180),dd=Math.hypot(dx,dy);
-        const same=String(b.tags?.['addr:housenumber']||'')===String(num);
-        const score=dd+(same? -1000:0);
-        if(score<bestD){bestD=score;best=b;}
-      }
-      return best;
+    const buildings=(d.elements||[]).filter(e=>e.type==='way'&&e.geometry?.length>=3);
+    if(!buildings.length)return null;
+
+    const metersPerLon=111320*Math.cos(lat*Math.PI/180);
+    const dist=(a,b)=>Math.hypot((a.lat-b.lat)*111320,(a.lon-b.lon)*metersPerLon);
+    const pointInPoly=(p,poly)=>{let inside=false;for(let i=0,j=poly.length-1;i<poly.length;j=i++){const xi=poly[i].lat,yi=poly[i].lon,xj=poly[j].lat,yj=poly[j].lon;const hit=((yi>p.lon)!==(yj>p.lon))&&(p.lat<(xj-xi)*(p.lon-yi)/(yj-yi)+xi);if(hit)inside=!inside;}return inside;};
+    const segDist=(p,a,b)=>{const ax=(a.lat-p.lat)*111320, ay=(a.lon-p.lon)*metersPerLon;const bx=(b.lat-p.lat)*111320, by=(b.lon-p.lon)*metersPerLon;const dx=bx-ax,dy=by-ay;const t=Math.max(0,Math.min(1,(-(ax*dx+ay*dy))/(dx*dx+dy*dy||1)));return Math.hypot(ax+t*dx,ay+t*dy);};
+    let best=null,bestScore=Infinity;
+    for(const b of buildings){
+      const poly=b.geometry;
+      const c=b.center||{lat:poly.reduce((x,p)=>x+p.lat,0)/poly.length,lon:poly.reduce((x,p)=>x+p.lon,0)/poly.length};
+      let edge=Infinity; for(let i=0;i<poly.length;i++) edge=Math.min(edge,segDist({lat,lon},poly[i],poly[(i+1)%poly.length]));
+      const inside=pointInPoly({lat,lon},poly);
+      const centerD=dist({lat,lon},c);
+      const score=inside ? -10000+centerD : edge + centerD*0.05;
+      if(score<bestScore){bestScore=score;best=b;}
     }
-    const addrPoints=(d.elements||[]).filter(e=>e.tags?.['addr:housenumber']);
-    if(addrPoints.length){
-      const point=addrPoints[0], pc=point.lat!=null?{lat:point.lat,lon:point.lon}:point.center;
-      if(pc){
-        const q2=`[out:json][timeout:12];way["building"](around:80,${pc.lat},${pc.lon});out geom tags;`;
-        const r2=await fetch('https://overpass-api.de/api/interpreter',{method:'POST',body:q2});
-        if(r2.ok){const d2=await r2.json();let best=null,bestD=Infinity;for(const b of d2.elements||[]){if(!b.geometry||b.geometry.length<3)continue;const c={lat:b.geometry.reduce((x,p)=>x+p.lat,0)/b.geometry.length,lon:b.geometry.reduce((x,p)=>x+p.lon,0)/b.geometry.length};const dx=(c.lat-pc.lat)*111320,dy=(c.lon-pc.lon)*111320*Math.cos(pc.lat*Math.PI/180),dd=Math.hypot(dx,dy);if(dd<bestD){bestD=dd;best=b;}}if(best)return best;}
-      }
-    }
-  }catch(e){}
-  return null;
+    return best;
+  }catch(e){return null;}
 }
 function highlightSearchedBuilding(building){
   if(window.searchHighlight){map.removeLayer(window.searchHighlight);window.searchHighlight=null;}
   if(!building?.geometry)return;
+  if(!map.getPane('searchHighlightPane')){const pane=map.createPane('searchHighlightPane');pane.style.zIndex=650;}
   const ll=building.geometry.map(p=>[p.lat,p.lon]);
-  window.searchHighlight=L.polygon(ll,{color:'#8b5cf6',weight:5,fillColor:'#a78bfa',fillOpacity:.55,dashArray:'8 5'}).addTo(map);
+  window.searchHighlight=L.polygon(ll,{pane:'searchHighlightPane',color:'#7c3aed',weight:7,opacity:1,fillColor:'#a855f7',fillOpacity:.65,dashArray:'10 6',interactive:false}).addTo(map);
   window.searchHighlight.bindTooltip('SEARCHED HOUSE',{permanent:true,direction:'center',className:'search-house-label'}).openTooltip();
   window.searchHighlight._houseEl=building;
 }
@@ -172,10 +165,10 @@ async function searchMapAddress(){
     if(!r.ok)throw new Error('search failed');
     const results=await r.json();
     if(!results.length){status.textContent='No address found. Try the full street address.';return;}
-    const hit=results[0];
+    const hit=results.find(x=>x.address?.house_number)||results[0];
     const building=await findBuildingForSearch(hit);
     if(building?.geometry){
-      const c=building.center||{lat:building.geometry.reduce((x,p)=>x+p.lat,0)/building.geometry.length,lon:building.geometry.reduce((x,p)=>x+p.lon,0)/building.geometry.length};
+      const c={lat:building.geometry.reduce((x,p)=>x+p.lat,0)/building.geometry.length,lon:building.geometry.reduce((x,p)=>x+p.lon,0)/building.geometry.length};
       map.setView([+c.lat,+c.lon],19);
       highlightSearchedBuilding(building);
       if(currentMarker)map.removeLayer(currentMarker);
@@ -204,6 +197,9 @@ function removePhoto(clearInput=true){beforePhotoData=null;afterPhotoData=null;i
 function saveCustomer(result){if(!selected){alert('Tap a house first.');return}recalc();const arr=customers();const old=arr.find(c=>String(c.houseKey||c.houseId)===String(selected.houseKey)||String(c.houseId)===String(selected.el.id));const priceInput=parseFloat(document.getElementById('customerPrice').value);const customerPrice=Number.isFinite(priceInput)&&priceInput>=0?Math.round(priceInput):Number(selected.quote||0);const item={id:old?.id||Date.now(),houseKey:selected.houseKey,houseId:selected.el.id,type:selected.el.type||'way',status:result,address:document.getElementById('custAddress').value||selected.address||'',name:document.getElementById('name').value,phone:document.getElementById('phone').value,email:document.getElementById('email').value,notes:document.getElementById('notes').value,building:selected.buildingArea,yard:selected.yard,quote:customerPrice,autoQuote:selected.quote,lat:selected.lat,lng:selected.lng,beforePhoto:beforePhotoData||old?.beforePhoto||old?.photo||null,afterPhoto:afterPhotoData||old?.afterPhoto||null,photo:beforePhotoData||old?.photo||null,frequency:document.getElementById('frequency').value,nextService:document.getElementById('nextService').value,created:old?.created||new Date().toLocaleString(),lastCompleted:old?.lastCompleted||null};const next=arr.filter(c=>String(c.houseKey||c.houseId)!==String(selected.houseKey)&&String(c.houseId)!==String(selected.el.id));next.unshift(item);if(!write(CUSTOMER_KEY,next))return;const statuses=getHouseStatuses();statuses[selected.houseKey]=result;write(STATUS_KEY,statuses);if(!old){recordSale(result==='YES'?'yes':result==='NO'?'no':'followups');recordSale('knocks')}else if(old.status!==result){if(result==='YES')recordSale('yes');else if(result==='NO')recordSale('no');else if(result==='FOLLOW-UP')recordSale('followups')}if(selected.poly){selected.poly._status=result;applyHouseStatus(selected.poly,result,selected.poly._offline);selected.poly.bringToFront()}selected.quote=customerPrice;document.getElementById('quote').textContent='$'+customerPrice;renderCustomersPage();renderRoute();renderSalesPage();setStatus('Customer saved as '+result+'. The entire house is now '+(result==='YES'?'GREEN 🟢':result==='NO'?'RED 🔴':'YELLOW 🕐')+'.')}
 function deleteCustomer(id){const arr=customers();const x=arr.find(c=>Number(c.id)===Number(id));if(!x)return;if(!confirm('Delete this customer?\n\n'+(x.name||'Unnamed customer')+'\n'+(x.address||'No address')+'\n\nThis will remove the customer and their saved photo from this phone.'))return;const next=arr.filter(c=>Number(c.id)!==Number(id));if(!write(CUSTOMER_KEY,next))return;const key=x.houseKey||String((x.type||'way'))+':'+x.houseId;const statuses=getHouseStatuses();delete statuses[key];write(STATUS_KEY,statuses);housesLayer.eachLayer(layer=>{if(layer._houseId===String(key)||layer._legacyHouseId===String(x.houseId)){layer._status=null;applyHouseStatus(layer,null,layer._offline)}});if(selected && String(selected.houseKey)===String(key)){clearCustomerForm(true);selected=null;document.getElementById('property').classList.add('hide')}renderCustomersPage();setStatus('Customer deleted. The house is back to unmarked.')}
 function deleteSelectedCustomer(){if(!selected)return;const x=customers().find(c=>String(c.houseKey||c.houseId)===String(selected.houseKey)||String(c.houseId)===String(selected.el?.id));if(!x){alert('This house does not have a saved customer yet.');return}deleteCustomer(x.id)}
+function clearSelectedHouseStatus(){if(!selected){alert('Tap a house first.');return}const key=selected.houseKey||houseKey(selected.el);const arr=customers();const x=arr.find(c=>String(c.houseKey||c.houseId)===String(key)||String(c.houseId)===String(selected.el?.id));if(!x||!['NO','FOLLOW-UP'].includes(x.status)){alert('This house does not have a NO or Follow-Up status to clear.');return}if(!confirm('Clear the NO / Follow-Up color from this house?
+
+The customer information and past sales history will stay saved.'))return;x.status='UNMARKED';write(CUSTOMER_KEY,arr);const statuses=getHouseStatuses();delete statuses[key];write(STATUS_KEY,statuses);housesLayer.eachLayer(layer=>{if(layer._houseId===String(key)||layer._legacyHouseId===String(selected.el?.id)){layer._status=null;applyHouseStatus(layer,null,layer._offline)}});selected.poly=null;renderCustomersPage();renderRoute();renderSalesPage();setStatus('House status cleared. The house is back to unmarked.') }
 function filterCustomers(filter){currentFilter=filter;renderCustomersPage()}
 function renderCustomersPage(){const arr=customers().slice().sort((a,b)=>{const rank={YES:0,'FOLLOW-UP':1,NO:2};return (rank[a.status]??2)-(rank[b.status]??2)});const shown=currentFilter==='ALL'?arr:arr.filter(x=>x.status===currentFilter);document.getElementById('customerFilterStatus').textContent=currentFilter==='ALL'?'Showing all saved customers.':`Showing ${currentFilter} customers.`;const box=document.getElementById('customersList');if(!shown.length){box.innerHTML='<div class="empty">No '+currentFilter+' customers saved yet.</div>';return}box.innerHTML=shown.map(x=>`<div class="customerCard"><div><span class="pill ${x.status==='YES'?'yes':x.status==='NO'?'no':'follow'}">${x.status}</span> <b>${esc(x.name||'Unnamed customer')}</b></div><div class="small" style="margin-top:5px">${esc(x.address||'No address')}</div><div style="margin-top:5px">${esc(x.phone||'No phone')} • ${esc(x.email||'No email')} • <b>$${x.quote||0}</b></div><div class="small" style="margin-top:5px">${x.frequency&&x.frequency!=='one-time'?'🔄 '+esc(freqLabel(x.frequency))+' • Next: '+esc(x.nextService||'Not set'):'One-time service'}${x.lastCompleted?' • Last done: '+esc(x.lastCompleted):''}</div>${x.notes?`<div class="small" style="margin-top:5px">${esc(x.notes)}</div>`:''}${x.beforePhoto||x.photo||x.afterPhoto?`<div class="photoPair" style="margin-top:8px">${x.beforePhoto||x.photo?`<div class="photoBox"><div class="small">BEFORE</div><img src="${x.beforePhoto||x.photo}" alt="Before"></div>`:''}${x.afterPhoto?`<div class="photoBox"><div class="small">AFTER</div><img src="${x.afterPhoto}" alt="After"></div>`:''}</div>`:''}<div class="customerActions"><button onclick="goToCustomer(${Number(x.id)})">📍 Go to house</button><button onclick="markJobComplete(${Number(x.id)})">✓ Complete job</button><button onclick="setCustomerStatusById(${Number(x.id)},'FOLLOW-UP')">🕐 Follow-up</button><button class="red" onclick="deleteCustomer(${Number(x.id)})">🗑️ Delete</button></div></div>`).join('')}
 function setCustomerPrice(){if(!selected)return;const v=parseFloat(document.getElementById('customerPrice').value);if(Number.isFinite(v)&&v>=0){selected.quote=Math.round(v);document.getElementById('quote').textContent='$'+selected.quote}}
