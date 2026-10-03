@@ -4,7 +4,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#167a3f"><meta name="apple-mobile-web-app-capable" content="yes">
 <link rel="manifest" href="manifest.json"><link rel="icon" href="icon.svg">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
 <title>JPC Lawn &amp; Landscape</title>
 <style>
 :root{--bg:#f4f7f5;--surface:#fff;--surface2:#eef4f0;--text:#183322;--muted:#607067;--border:#d8e3dc;--green:#18a34a;--red:#d93645;--shadow:0 8px 28px #0b2a1718}
@@ -64,7 +64,7 @@ header{background:linear-gradient(135deg,#07150c,#0f3a1d);color:#fff;padding:11p
 
 <nav class="bottomNav" aria-label="Main navigation"><button class="navBtn active" data-page="map" onclick="showPage('map')"><span>🗺️</span>Map</button><button class="navBtn" data-page="customers" onclick="showPage('customers')"><span>👥</span>Customers</button><button class="navBtn" data-page="sales" onclick="showPage('sales')"><span>📊</span>Sales</button><button class="navBtn" data-page="finance" onclick="showPage('finance')"><span>💵</span>Money</button><button class="navBtn" data-page="settings" onclick="showPage('settings')"><span>⚙️</span>Settings</button></nav>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script src="https://cdn.jsdelivr.net/npm/@turf/turf@7/turf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script><script src="https://cdn.jsdelivr.net/npm/@turf/turf@7/turf.min.js"></script>
 <script>
 const map=L.map('map',{zoomControl:true}).setView([42.9,-85.9],15);const street=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:20,attribution:'© OpenStreetMap contributors'}).addTo(map);const satellite=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Tiles © Esri'});let satelliteOn=false,selected=null,housesLayer=L.layerGroup().addTo(map),currentMarker=null,beforePhotoData=null,afterPhotoData=null,currentFilter='YES';
 const STATUS_KEY='jjHouseStatusesV5',CUSTOMER_KEY='jjCustomersV5',OFFLINE_KEY='jjOfflineAreasV5',SALES_KEY='jpcSalesV8',JOBS_KEY='jpcCompletedJobsV8',EXPENSE_KEY='jpcBusinessExpensesV1';
@@ -227,5 +227,5 @@ function renderOfflineAreas(){const arr=read(OFFLINE_KEY,[]),box=document.getEle
 function loadOfflineArea(id){const a=read(OFFLINE_KEY,[]).find(x=>x.id===id);if(!a)return;showPage('map');map.setView([a.center.lat,a.center.lng],Math.min(19,Math.max(15,a.zoom||17)));drawBuildings(a.elements,housesLayer,true);setStatus(`Offline area loaded: ${a.count} saved buildings. YES/NO colors, customers and photos still work offline.`)}
 function deleteOfflineArea(id){write(OFFLINE_KEY,read(OFFLINE_KEY,[]).filter(x=>x.id!==id));renderOfflineAreas()}
 function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
-loadTheme();renderCustomersPage();renderOfflineAreas();renderRoute();renderSalesPage();renderFinancePage();if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+loadTheme();renderCustomersPage();renderOfflineAreas();renderRoute();renderSalesPage();renderFinancePage();window.addEventListener('load',()=>setTimeout(()=>map.invalidateSize(),250));setTimeout(()=>map.invalidateSize(),500);if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script></body></html>
