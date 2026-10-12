@@ -5,7 +5,7 @@
 <meta name="theme-color" content="#167a3f"><meta name="apple-mobile-web-app-capable" content="yes">
 <link rel="manifest" href="manifest.json"><link rel="icon" href="icon.svg">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
-<title>JPC|Property Care</title>
+<title>JPC | Property Care</title>
 <style>
 :root{--bg:#f4f7f5;--surface:#fff;--surface2:#eef4f0;--text:#183322;--muted:#607067;--border:#d8e3dc;--green:#18a34a;--red:#d93645;--shadow:0 8px 28px #0b2a1718}
 body.dark{--bg:#07100b;--surface:#0d1912;--surface2:#14241a;--text:#f1f7f2;--muted:#9cafA2;--border:#263a2d;--green:#32d267;--red:#ff4b5c;--shadow:0 10px 30px #0008}
@@ -176,9 +176,11 @@ async function highlightAtPoint(lat,lon,label){
 function makeDraggableSearchMarker(lat,lon,popupText){
   if(searchMarker)map.removeLayer(searchMarker);
   const icon=L.divIcon({className:'',html:'<div class="search-drag-marker">📍</div>',iconSize:[42,42],iconAnchor:[21,36],popupAnchor:[0,-32]});
-  searchMarker=L.marker([lat,lon],{draggable:false,keyboard:true,zIndexOffset:3000,icon,interactive:true}).addTo(map);
+  searchMarker=L.marker([lat,lon],{draggable:true,keyboard:true,zIndexOffset:3000,icon,interactive:true,autoPan:true}).addTo(map);
+  searchMarker.on('dragstart',()=>{tapToPlaceHousePin=false;setSavedSpotToolVisible(true);document.getElementById('searchStatus').textContent='Moving pin… release it on the correct house, then tap Save exact house location.';});
+  searchMarker.on('dragend',async()=>{const p=searchMarker.getLatLng();pendingHouseSpot={lat:p.lat,lng:p.lng};tapToPlaceHousePin=false;setSavedSpotToolVisible(true);document.getElementById('placeHouseSpotBtn').textContent='📍 Place pin by tapping map';document.getElementById('searchStatus').textContent='📍 Pin moved. Tap Save exact house location to remember it.';try{const found=await highlightAtPoint(p.lat,p.lng);if(found)highlightSearchedBuilding(found.building);}catch(e){};});
   searchMarker.bindPopup(popupText,{closeButton:false,maxWidth:280}).openPopup();
-  searchMarker.on('click',()=>{document.getElementById('searchStatus').textContent='To move this pin, tap “Place pin by tapping map”, then tap the correct house.';setSavedSpotToolVisible(true);});
+  searchMarker.on('click',(evt)=>{if(evt&&evt.originalEvent)L.DomEvent.stopPropagation(evt.originalEvent);document.getElementById('searchStatus').textContent='You can drag this pin onto the correct house, or tap “Place pin by tapping map” and then tap the house. Tap Save exact house location when it is correct.';setSavedSpotToolVisible(true);});
   return searchMarker;
 }
 map.on('click',async function(e){
@@ -221,7 +223,7 @@ async function searchMapAddress(){
     map.setView([targetLat,targetLon],19);
     makeDraggableSearchMarker(targetLat,targetLon,`<b>${esc(hit.display_name||q)}</b><br><span style="color:#6d28d9;font-weight:700">Use “Place pin by tapping map” to correct the location.</span>`);
     pendingHouseSpot={lat:targetLat,lng:targetLon};setSavedSpotToolVisible(true);
-    status.textContent=saved?'📌 Your saved house location is loaded. Tap Place pin by tapping map if you need to correct it.':'📍 Address found. Tap Place pin by tapping map, then tap the correct house and save it.';
+    status.textContent=saved?'📌 Your saved house location is loaded. Drag the pin or use Place pin by tapping map to correct it.':'📍 Address found. Drag the pin onto the correct house, or tap Place pin by tapping map and then tap the house. Save when correct.';
     setTimeout(ensureMapVisible,150);
   }catch(e){status.textContent='Search failed. Check your internet connection and try again.';setTimeout(ensureMapVisible,150);}
 }
