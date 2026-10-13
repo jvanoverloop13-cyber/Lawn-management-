@@ -155,13 +155,13 @@ async function findBuildingForSearch(hit){
   }catch(e){return null;}
 }
 function highlightSearchedBuilding(building){
-  if(window.searchHighlight){map.removeLayer(window.searchHighlight);window.searchHighlight=null;}
+  if(searchHighlight){map.removeLayer(searchHighlight);searchHighlight=null;}
   if(!building?.geometry)return;
   if(!map.getPane('searchHighlightPane')){const pane=map.createPane('searchHighlightPane');pane.style.zIndex=650;}
   const ll=building.geometry.map(p=>[p.lat,p.lon]);
-  window.searchHighlight=L.polygon(ll,{pane:'searchHighlightPane',color:'#7c3aed',weight:8,opacity:1,fillColor:'#a855f7',fillOpacity:.68,dashArray:'10 6',interactive:false}).addTo(map);
-  window.searchHighlight.bindTooltip('SEARCHED HOUSE',{permanent:true,direction:'center',className:'search-house-label'}).openTooltip();
-  window.searchHighlight._houseEl=building;
+  searchHighlight=L.polygon(ll,{pane:'searchHighlightPane',color:'#7c3aed',weight:8,opacity:1,fillColor:'#a855f7',fillOpacity:.68,dashArray:'10 6',interactive:false}).addTo(map);
+  searchHighlight.bindTooltip('SEARCHED HOUSE',{permanent:true,direction:'center',className:'search-house-label'}).openTooltip();
+  searchHighlight._houseEl=building;
 }
 async function highlightAtPoint(lat,lon,label){
   const fake={lat:String(lat),lon:String(lon)};
